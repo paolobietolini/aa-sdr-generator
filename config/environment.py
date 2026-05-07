@@ -1,8 +1,11 @@
 from typing import Optional
-from dotenv import set_key, load_dotenv
+from dotenv import set_key
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ENV_PATH = '.env'
+
+_env: Optional['Env'] = None
+
 
 class Env(BaseSettings):
     client_id: str
@@ -15,9 +18,20 @@ class Env(BaseSettings):
         env_file='.env', env_file_encoding='utf-8')
 
 
-def write_env(updates: dict[str, str]) -> None:
+def get_env() -> 'Env':
+    global _env
+    if _env is None:
+        _env = Env()
+    return _env
+
+
+def write_env(updates: dict[str, str]) -> 'Env':
     for key, value in updates.items():
         set_key(ENV_PATH, key, value)
+    return reload()
 
-def reload():
-    pass
+
+def reload() -> 'Env':
+    global _env
+    _env = Env()
+    return _env

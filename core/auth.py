@@ -1,7 +1,6 @@
 from authlib.integrations.requests_client import OAuth2Session
-from config.environment import Env
+from config.environment import get_env, write_env
 from models.adobe.ims import TokenResponse
-from config.environment import write_env
 from config.endpoints import BaseUrls
 import certifi
 import json, base64
@@ -9,7 +8,7 @@ import json, base64
 
 class Auth:
     def __init__(self):
-        self.env = Env()
+        self.env = get_env()
         self._token: TokenResponse | None = None
         self._bootstrap()
 
@@ -35,10 +34,10 @@ class Auth:
             client_secret=self.env.client_secret,
             scope=self.env.scopes,
         )
-        session.verify = False #certifi.where() TODO Change
+        session.verify = certifi.where()
 
         raw = session.fetch_token(
-            url=f"{BaseUrls.IMS_ENDPOINT}/ims/token/v3",
+            url=BaseUrls.TOKEN_URL,
             grant_type="client_credentials",
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -58,12 +57,7 @@ class Auth:
         org_id = self._token.claims.get("org")
         tech_id = self._token.claims.get("client_id")
 
-        write_env({"ORG_ID": org_id, "TECHNICAL_ACCOUNT_ID": tech_id})
-
-        self.env.org_id = org_id
-        self.env.technical_account_id = tech_id
-
-        self.env = Env()
+        self.env = write_env({"ORG_ID": org_id, "TECHNICAL_ACCOUNT_ID": tech_id})
 
     @staticmethod
     def _decode_token(token: str) -> dict:
