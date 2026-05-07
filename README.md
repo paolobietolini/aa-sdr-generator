@@ -153,4 +153,4 @@ implemented but not used during SDR generation.
 
 ## License
 
-[BDD-3](LICENSE)
+[BSD-3](LICENSE)
