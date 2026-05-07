@@ -153,4 +153,4 @@ implemented but not used during SDR generation.
 
 ## License
 
-MIT
+[BDD-3](LICENSE)
