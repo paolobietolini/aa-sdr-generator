@@ -1,0 +1,13 @@
+template_path: ./templates/aa_en_BRD_SDR_template.xlsx
+output_dir: ./out/
+
+rsids:
+  include:
+    - "mycompany*"
+  exclude: []
+
+metadata:
+  # organization: null  -> falls back to companyName from /discovery/me
+  organization: null
+  author: Paolo
+  date: "2026-05-07"
