@@ -1,3 +1,6 @@
-from core.client import AdobeClient
+from core.client import AdobeAnalyticsClient, AdobeClient
 
-client = AdobeClient()
+client = AdobeAnalyticsClient(AdobeClient())
+s = client.get_metrics(rsid='aldinordbe')
+
+print(s)
