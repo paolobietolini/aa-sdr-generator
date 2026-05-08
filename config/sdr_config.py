@@ -20,6 +20,7 @@ class SdrConfig(BaseModel):
     output_dir: Path = Path("./out/")
     rsids: RsidFilter = Field(default_factory=RsidFilter)
     metadata: SdrMetadata = Field(default_factory=SdrMetadata)
+    log_retention_days: int = 30
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "SdrConfig":

@@ -1,3 +1,4 @@
+import logging
 import requests
 from urllib.parse import quote
 from core.auth import Auth
@@ -16,6 +17,8 @@ from models.adobe.analytics import (
 from typing import Optional
 from config.endpoints import AAEndpoints
 from pydantic import TypeAdapter
+
+logger = logging.getLogger(__name__)
 
 
 class AdobeClient:
@@ -60,6 +63,7 @@ class AdobeClient:
         response = self.session.request(method, url, **kwargs)
 
         if response.status_code == 401:
+            logger.warning("401 on %s %s — refreshing token and retrying", method.upper(), url)
             self.auth.refresh()
             self._update_auth_header()
             response = self.session.request(method, url, **kwargs)
@@ -84,6 +88,7 @@ class AdobeClient:
             data = response.json()
 
             elements.extend(data.get("content", []))
+            logger.debug("Page %d fetched — %d items total", page, len(elements))
 
             if data.get("lastPage", True):
                 break

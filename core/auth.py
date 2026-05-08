@@ -1,9 +1,13 @@
+import logging
+
 from authlib.integrations.requests_client import OAuth2Session
 from config.environment import get_env, write_env
 from models.adobe.ims import TokenResponse
 from config.endpoints import BaseUrls
 import certifi
 import json, base64
+
+logger = logging.getLogger(__name__)
 
 
 class Auth:
@@ -29,6 +33,7 @@ class Auth:
         return self._token
 
     def _fetch_token(self) -> TokenResponse:
+        logger.debug("Fetching access token from Adobe IMS")
         session = OAuth2Session(
             client_id=self.env.client_id,
             client_secret=self.env.client_secret,
@@ -57,6 +62,7 @@ class Auth:
         org_id = self._token.claims.get("org")
         tech_id = self._token.claims.get("client_id")
 
+        logger.info("Bootstrap: writing ORG_ID and TECHNICAL_ACCOUNT_ID to .env")
         self.env = write_env({"ORG_ID": org_id, "TECHNICAL_ACCOUNT_ID": tech_id})
 
     @staticmethod

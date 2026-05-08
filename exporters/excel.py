@@ -1,3 +1,4 @@
+import logging
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Iterable
@@ -9,6 +10,7 @@ from core.client import AdobeAnalyticsClient
 from models.adobe.analytics import CalculatedMetricResponse, SegmentResponse, SuiteResponse
 from config.sdr_config import SdrConfig
 
+logger = logging.getLogger(__name__)
 
 # eVars, props, and custom events all share this layout:
 # col 3 = identifier, col 4 = name, col 5 = description, data starts row 7
@@ -121,7 +123,11 @@ def generate_sdr(client: AdobeAnalyticsClient, config: SdrConfig) -> list[Path]:
     suites = client.get_suites()
     selected = filter_suites(suites, config.rsids.include, config.rsids.exclude)
     if not selected:
-        print(f"No report suites matched include={config.rsids.include} exclude={config.rsids.exclude}")
+        logger.warning(
+            "No report suites matched include=%s exclude=%s",
+            config.rsids.include,
+            config.rsids.exclude,
+        )
         return []
 
     org_name = _resolve_org_name(client, config.metadata.organization)
@@ -129,25 +135,32 @@ def generate_sdr(client: AdobeAnalyticsClient, config: SdrConfig) -> list[Path]:
 
     output_files: list[Path] = []
     for suite in selected:
-        wb = openpyxl.load_workbook(config.template_path)
-        _set_org_name(wb, org_name)
+        logger.info("Processing %s", suite.rsid)
+        try:
+            wb = openpyxl.load_workbook(config.template_path)
+            _set_org_name(wb, org_name)
 
-        dims = client.get_dimensions(rsid=suite.rsid, expansion="description,tags")
-        dims_by_sid = _index_by_short_id(dims)
-        n_evars = _fill_sheet(wb["eVars"], dims_by_sid)
-        n_props = _fill_sheet(wb["props"], dims_by_sid, aliases=PROP_ALIASES)
+            dims = client.get_dimensions(rsid=suite.rsid, expansion="description,tags")
+            dims_by_sid = _index_by_short_id(dims)
+            n_evars = _fill_sheet(wb["eVars"], dims_by_sid)
+            n_props = _fill_sheet(wb["props"], dims_by_sid, aliases=PROP_ALIASES)
 
-        metrics = client.get_metrics(rsid=suite.rsid, expansion="description")
-        metrics_by_sid = _index_by_short_id(metrics)
-        n_events = _fill_sheet(wb["custom events (metrics)"], metrics_by_sid)
+            metrics = client.get_metrics(rsid=suite.rsid, expansion="description")
+            metrics_by_sid = _index_by_short_id(metrics)
+            n_events = _fill_sheet(wb["custom events (metrics)"], metrics_by_sid)
 
-        cms = client.get_calculated_metrics(rsids=suite.rsid, expansion="definition,reportSuiteName")
-        segs = client.get_segments(rsids=suite.rsid, expansion="definition,reportSuiteName")
-        n_cms, n_segs = _fill_metrics_segments_sheet(wb["metrics-segments"], cms, segs)
+            cms = client.get_calculated_metrics(rsids=suite.rsid, expansion="definition,reportSuiteName")
+            segs = client.get_segments(rsids=suite.rsid, expansion="definition,reportSuiteName")
+            n_cms, n_segs = _fill_metrics_segments_sheet(wb["metrics-segments"], cms, segs)
 
-        out_path = config.output_dir / f"{suite.rsid}_sdr.xlsx"
-        wb.save(out_path)
-        output_files.append(out_path)
-        print(f"  {suite.rsid}: eVars={n_evars} props={n_props} events={n_events} cms={n_cms} segs={n_segs} -> {out_path}")
+            out_path = config.output_dir / f"{suite.rsid}_sdr.xlsx"
+            wb.save(out_path)
+            output_files.append(out_path)
+            logger.info(
+                "%s: eVars=%d props=%d events=%d cms=%d segs=%d -> %s",
+                suite.rsid, n_evars, n_props, n_events, n_cms, n_segs, out_path,
+            )
+        except Exception as e:
+            logger.error("Failed %s: %s", suite.rsid, e)
 
     return output_files
