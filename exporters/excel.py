@@ -1,4 +1,5 @@
 import logging
+from datetime import date as _date
 from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any, Iterable
@@ -35,7 +36,12 @@ CM_FORMAT_MAP = {"decimal": "Decimal", "percent": "Percent", "time": "Time", "cu
 GLOSSARY_ORG_CELL = (2, 3)
 
 
-def filter_suites(suites: Iterable[SuiteResponse], include: list[str], exclude: list[str]) -> list[SuiteResponse]:
+def filter_suites(
+    suites: Iterable[SuiteResponse],
+    include: list[str],
+    exclude: list[str],
+) -> list[SuiteResponse]:
+    """Keep only suites whose rsid matches an include glob and no exclude glob."""
     matched = [s for s in suites if any(fnmatch(s.rsid, p) for p in include)]
     if exclude:
         matched = [s for s in matched if not any(fnmatch(s.rsid, p) for p in exclude)]
@@ -43,14 +49,20 @@ def filter_suites(suites: Iterable[SuiteResponse], include: list[str], exclude: 
 
 
 def _short_id(full_id: str) -> str:
+    """Strip the 'variables/' prefix from a dimension or metric ID."""
     return full_id.split("/")[-1] if "/" in full_id else full_id
 
 
 def _index_by_short_id(items: list[Any]) -> dict[str, Any]:
+    """Build a lookup dict keyed by short, case-folded ID."""
     return {_short_id(item.id).casefold(): item for item in items}
 
 
 def _fill_sheet(ws, by_sid: dict[str, Any], aliases: dict[str, str] | None = None) -> int:
+    """Write name and description into matched rows of a worksheet.
+
+    Returns the number of rows that were filled.
+    """
     aliases = aliases or {}
     filled = 0
     for row in range(DATA_START_ROW, ws.max_row + 1):
@@ -69,10 +81,12 @@ def _fill_sheet(ws, by_sid: dict[str, Any], aliases: dict[str, str] | None = Non
 
 
 def _cm_format(cm: CalculatedMetricResponse) -> str | None:
+    """Map a calculated metric's type string to its human-readable display label."""
     return CM_FORMAT_MAP.get((cm.type or "").lower(), cm.type)
 
 
 def _segment_container(seg: SegmentResponse) -> str | None:
+    """Return the display label for a segment's container context, or None if unknown."""
     if not seg.definition or not seg.definition.container:
         return None
     return CONTAINER_LEVEL_MAP.get(seg.definition.container.get("context"))
@@ -83,6 +97,11 @@ def _fill_metrics_segments_sheet(
     calc_metrics: list[CalculatedMetricResponse],
     segments: list[SegmentResponse],
 ) -> tuple[int, int]:
+    """Populate the metrics-segments sheet with calculated metrics then segments.
+
+    Clears any leftover sample rows from the template after the last written row.
+    Returns (count_of_calculated_metrics, count_of_segments).
+    """
     row = DATA_START_ROW
 
     for cm in calc_metrics:
@@ -108,18 +127,29 @@ def _fill_metrics_segments_sheet(
 
 
 def _set_org_name(wb: Workbook, name: str) -> None:
+    """Write the organisation name into both the Glossary and reserved reporting sheets."""
     wb["Glossary"].cell(*GLOSSARY_ORG_CELL).value = name
     wb["reserved reporting"].cell(*GLOSSARY_ORG_CELL).value = name
 
 
 def _resolve_org_name(client: AdobeAnalyticsClient, override: str | None) -> str:
+    """Return override if provided; otherwise return the client's cached company name."""
     if override:
         return override
-    me = client.client.discover_me()
-    return me.ims_orgs[0].companies[0].company_name
+    return client.company_name
+
+
+def _output_filename(rsid: str, author: str | None) -> str:
+    """Build the output filename as {rsid}_{date}[_{author}]_sdr.xlsx."""
+    today = _date.today().strftime("%Y-%m-%d")
+    if author:
+        safe_author = "".join(c if c.isalnum() or c in "-_" else "_" for c in author)
+        return f"{rsid}_{today}_{safe_author}_sdr.xlsx"
+    return f"{rsid}_{today}_sdr.xlsx"
 
 
 def generate_sdr(client: AdobeAnalyticsClient, config: SdrConfig) -> list[Path]:
+    """Fetch data from Adobe Analytics and generate one SDR Excel file per matched suite."""
     suites = client.get_suites()
     selected = filter_suites(suites, config.rsids.include, config.rsids.exclude)
     if not selected:
@@ -153,7 +183,7 @@ def generate_sdr(client: AdobeAnalyticsClient, config: SdrConfig) -> list[Path]:
             segs = client.get_segments(rsids=suite.rsid, expansion="definition,reportSuiteName")
             n_cms, n_segs = _fill_metrics_segments_sheet(wb["metrics-segments"], cms, segs)
 
-            out_path = config.output_dir / f"{suite.rsid}_sdr.xlsx"
+            out_path = config.output_dir / _output_filename(suite.rsid, config.metadata.author)
             wb.save(out_path)
             output_files.append(out_path)
             logger.info(

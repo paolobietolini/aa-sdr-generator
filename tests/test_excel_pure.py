@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import openpyxl
 import pytest
@@ -11,6 +11,7 @@ from exporters.excel import (
     _cm_format,
     _fill_sheet,
     _index_by_short_id,
+    _output_filename,
     _segment_container,
     _short_id,
     filter_suites,
@@ -229,3 +230,28 @@ def test_segment_container_no_definition_returns_none():
 def test_segment_container_no_container_returns_none():
     seg = SegmentResponse(id="s1", definition=SegmentDefinition(container=None))
     assert _segment_container(seg) is None
+
+
+# ---------------------------------------------------------------------------
+# _output_filename
+# ---------------------------------------------------------------------------
+
+def test_output_filename_without_author():
+    with patch("exporters.excel._date") as mock_date:
+        mock_date.today.return_value.strftime.return_value = "2026-05-08"
+        name = _output_filename("myco_be", None)
+    assert name == "myco_be_2026-05-08_sdr.xlsx"
+
+
+def test_output_filename_with_author():
+    with patch("exporters.excel._date") as mock_date:
+        mock_date.today.return_value.strftime.return_value = "2026-05-08"
+        name = _output_filename("myco_be", "Paolo")
+    assert name == "myco_be_2026-05-08_Paolo_sdr.xlsx"
+
+
+def test_output_filename_author_sanitised():
+    with patch("exporters.excel._date") as mock_date:
+        mock_date.today.return_value.strftime.return_value = "2026-05-08"
+        name = _output_filename("myco_be", "John Doe")
+    assert name == "myco_be_2026-05-08_John_Doe_sdr.xlsx"

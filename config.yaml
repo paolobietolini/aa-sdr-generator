@@ -10,4 +10,3 @@ metadata:
   # organization: null  -> falls back to companyName from /discovery/me
   organization: null
   author: Paolo
-  date: "2026-05-07"

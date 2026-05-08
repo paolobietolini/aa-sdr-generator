@@ -67,6 +67,7 @@ def test_logs_error_and_continues_on_suite_failure(tmp_path, caplog):
     config.rsids.include = ["*"]
     config.rsids.exclude = []
     config.metadata.organization = "Test Org"
+    config.metadata.author = None
     config.output_dir = tmp_path
 
     with patch("exporters.excel.openpyxl.load_workbook") as mock_wb:
@@ -79,4 +80,4 @@ def test_logs_error_and_continues_on_suite_failure(tmp_path, caplog):
 
     error_messages = [r.message for r in caplog.records if r.levelno == logging.ERROR]
     assert any("bad_rsid" in m for m in error_messages)
-    assert any(f.name == "good_rsid_sdr.xlsx" for f in result)
+    assert any(f.name.startswith("good_rsid_") and f.name.endswith("_sdr.xlsx") for f in result)
